@@ -1,78 +1,49 @@
-import { existsSync }  from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, parse } from 'node:path';
-import { cwd }         from 'node:process';
-import { readFile }    from 'node:fs/promises';
+import { cwd } from 'node:process';
+import { readFile } from 'node:fs/promises';
 
-const findFile = (file) => {
-    let dir = cwd();
+export const getVersion = async () => {
+    // 환경 변수에서 버전 확인
+    if (process.env.VERSION) {
+        return process.env.VERSION;
+    }
 
-    while (dir !== parse(dir).root) {
-        if (existsSync(join(dir, file))) {
-            return dir;
+    try {
+        // 환경 변수가 없을 경우 package.json에서 읽기 시도
+        const packagePath = join(cwd(), 'package.json');
+        if (existsSync(packagePath)) {
+            const { version } = JSON.parse(await readFile(packagePath, 'utf8'));
+            return version;
         }
-
-        dir = join(dir, '../');
+    } catch (error) {
+        console.warn('Warning: Could not read package.json:', error.message);
     }
-}
-
-const root = findFile('.git');
-const pack = findFile('package.json');
-
-const readGit = (filename) => {
-    if (!root) {
-        throw 'no git repository root found';
-    }
-
-    return readFile(join(root, filename), 'utf8');
-}
-
-export const getCommit = async () => {
-    return (await readGit('.git/logs/HEAD'))
-            ?.split('\n')
-            ?.filter(String)
-            ?.pop()
-            ?.split(' ')[1];
+    
+    return 'unknown';
 }
 
 export const getBranch = async () => {
-    if (process.env.CF_PAGES_BRANCH) {
-        return process.env.CF_PAGES_BRANCH;
-    }
-
-    return (await readGit('.git/HEAD'))
-            ?.replace(/^ref: refs\/heads\//, '')
-            ?.trim();
+    // 환경 변수에서 브랜치 확인
+    return process.env.BRANCH_NAME || 'unknown';
 }
 
 export const getRemote = async () => {
-    let remote = (await readGit('.git/config'))
-                    ?.split('\n')
-                    ?.find(line => line.includes('url = '))
-                    ?.split('url = ')[1];
+    try {
+        // REPO_URL에서 저장소 정보 추출
+        const repoUrl = process.env.REPO_URL;
+        if (!repoUrl) return 'unknown';
 
-    if (remote?.startsWith('git@')) {
-        remote = remote.split(':')[1];
-    } else if (remote?.startsWith('http')) {
-        remote = new URL(remote).pathname.substring(1);
+        // GitHub URL에서 사용자/저장소 부분만 추출
+        const match = repoUrl.match(/github\.com\/(.+?)(?:\.git)?$/);
+        return match ? match[1] : 'unknown';
+    } catch (error) {
+        console.warn('Warning: Could not parse REPO_URL:', error.message);
+        return 'unknown';
     }
-
-    remote = remote?.replace(/\.git$/, '');
-
-    if (!remote) {
-        throw 'could not parse remote';
-    }
-
-    return remote;
 }
 
-export const getVersion = async () => {
-    if (!pack) {
-        throw 'no package root found';
-    }
-
-    const { version } = JSON.parse(
-        await readFile(join(pack, 'package.json'), 'utf8')
-    );
-
-    return version;
+export const getCommit = async () => {
+    // 커밋 정보는 환경 변수에 없으므로 'unknown' 반환
+    return 'unknown';
 }
