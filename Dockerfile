@@ -1,3 +1,4 @@
+
 FROM node:23-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -15,15 +16,13 @@ FROM base AS api
 WORKDIR /app
 COPY --from=build --chown=node:node /prod/api /app
 
-# package.json에서 버전 정보 추출
-RUN VERSION=$(node -p "require('./package.json').version") && \
-    echo "VERSION=${VERSION}" > .env
-
-# 환경 변수 설정
-ENV GIT_COMMIT_HASH="unknown"
-ENV GIT_BRANCH="main"
-ENV APP_VERSION="10.9.1"
-ENV SKIP_GIT_CHECK="true"
+# 가짜 Git 리포지토리 구조 생성
+RUN mkdir -p .git/refs/heads .git/objects/00
+RUN echo "ref: refs/heads/main" > .git/HEAD
+RUN echo "0000000000000000000000000000000000000000" > .git/refs/heads/main
+RUN touch .git/objects/00/00000000000000000000000000000000000000
+RUN echo "[remote \"origin\"]\n\turl = https://github.com/imputnet/cobalt.git" > .git/config
+RUN echo "v10.9.1" > .git/VERSION
 
 USER node
 EXPOSE 9000
